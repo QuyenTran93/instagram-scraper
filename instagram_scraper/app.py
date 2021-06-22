@@ -192,6 +192,7 @@ class InstagramScraper(object):
             if self.quit:
                 return
             try:
+                self.sleep(RETRY_DELAY)
                 response = self.session.get(timeout=CONNECT_TIMEOUT, cookies=self.cookies, *args, **kwargs)
                 if response.status_code == 404:
                     return
@@ -620,7 +621,7 @@ class InstagramScraper(object):
             details = self.__get_media_details(code)
             item['location'] = details.get('location') if details else None
 
-    def scrape(self, executor=concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)):
+    def scrape(self):
         """Crawls through and downloads user's media"""
         self.session.headers.update({'user-agent': STORIES_UA})
         try:
@@ -645,32 +646,48 @@ class InstagramScraper(object):
                         self.logger.info('User {0} is private'.format(username))
 
                 self.rhx_gis = ""
+                
+                try:
+                    self.get_profile_pic(dst, future_to_item, user, username)
+                    if 'profile_pic' in future_to_item:
+                        timestamp = self.__get_timestamp(future_to_item['profile_pic'])
+                        if timestamp > greatest_timestamp:
+                            greatest_timestamp = timestamp
+                except Exception as error:
+                        self.logger.error(
+                            'Media at {0} generated an exception: {1}'.format(future_to_item['profile_pic']['urls'], error))
 
-                self.get_profile_pic(dst, executor, future_to_item, user, username)
                 self.get_profile_info(dst, username)
 
+
                 if self.logged_in:
-                    self.get_stories(dst, executor, future_to_item, user, username)
+                    try:
+                        self.get_stories(dst, future_to_item, user, username)
+                        if 'stories' in future_to_item:
+                            timestamp = self.__get_timestamp(future_to_item['stories'])
+                            if timestamp > greatest_timestamp:
+                                greatest_timestamp = timestamp
+                    except Exception as error:
+                        if 'stories' in future_to_item:
+                            self.logger.error(
+                                'Media at {0} generated an exception: {1}'.format(future_to_item['stories']['urls'], error))
+
 
                 # Crawls the media and sends it to the executor.
                 try:
-
-                    self.get_media(dst, executor, future_to_item, user)
-
+                    try:
+                        self.get_media(dst, future_to_item, user)
+                        if 'media' in future_to_item:
+                            timestamp = self.__get_timestamp(future_to_item['media'])
+                            if timestamp > greatest_timestamp:
+                                greatest_timestamp = timestamp
+                    except Exception as error:
+                        if 'media' in future_to_item:
+                            self.logger.error(
+                                'Media at {0} generated an exception: {1}'.format(future_to_item['media']['urls'], error))
                     # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
                     # the above loop finishes.
-                    if future_to_item:
-                        for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
-                                                desc='Downloading', disable=self.quiet):
-                            item = future_to_item[future]
-
-                            if future.exception() is not None:
-                                self.logger.error(
-                                    'Media at {0} generated an exception: {1}'.format(item['urls'], future.exception()))
-                            else:
-                                timestamp = self.__get_timestamp(item)
-                                if timestamp > greatest_timestamp:
-                                    greatest_timestamp = timestamp
+                
                     # Even bother saving it?
                     if greatest_timestamp > self.last_scraped_filemtime:
                         self.set_last_scraped_timestamp(username, greatest_timestamp)
@@ -683,7 +700,7 @@ class InstagramScraper(object):
             self.quit = True
             self.logout()
 
-    def get_profile_pic(self, dst, executor, future_to_item, user, username):
+    def get_profile_pic(self, dst, future_to_item, user, username):
         if 'image' not in self.media_types:
             return
 
@@ -720,8 +737,8 @@ class InstagramScraper(object):
         if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
             for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
                                   ncols=0, disable=self.quiet):
-                future = executor.submit(self.worker_wrapper, self.download, item, dst)
-                future_to_item[future] = item
+                self.download(item, dst)
+                future_to_item['profile_pic'] = item
 
     def get_profile_info(self, dst, username):
         if self.profile_metadata is False:
@@ -763,7 +780,7 @@ class InstagramScraper(object):
         }
         self.save_json(item, '{0}/{1}.json'.format(dst, username))
 
-    def get_stories(self, dst, executor, future_to_item, user, username):
+    def get_stories(self, dst, future_to_item, user, username):
         """Scrapes the user's stories."""
         if self.logged_in and \
                 ('story-image' in self.media_types or 'story-video' in self.media_types):
@@ -779,22 +796,19 @@ class InstagramScraper(object):
                 if self.story_has_selected_media_types(item) and self.is_new_media(item):
                     item['username'] = username
                     item['shortcode'] = ''
-                    future = executor.submit(self.worker_wrapper, self.download, item, dst)
-                    future_to_item[future] = item
+                    self.download(item, dst)
+                    future_to_item['stories'] = item
 
                 iter = iter + 1
                 if self.maximum != 0 and iter >= self.maximum:
                     break
 
-    def get_media(self, dst, executor, future_to_item, user):
+    def get_media(self, dst, future_to_item, user):
         """Scrapes the user's posts for media."""
         if 'image' not in self.media_types and 'video' not in self.media_types and 'none' not in self.media_types:
             return
 
         username = user['username']
-
-        if self.include_location:
-            media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
         iter = 0
         for item in tqdm.tqdm(self.query_media_gen(user), desc='Searching {0} for posts'.format(username),
@@ -805,8 +819,8 @@ class InstagramScraper(object):
                     filtered = any(x in item['tags'] for x in self.filter)
                     if self.has_selected_media_types(item) and self.is_new_media(item) and filtered:
                         item['username']=username
-                        future = executor.submit(self.worker_wrapper, self.download, item, dst)
-                        future_to_item[future] = item
+                        self.download(item, dst)
+                        future_to_item['media'] = item
                 else:
                     # For when filter is on but media doesnt contain tags
                     pass
@@ -814,12 +828,12 @@ class InstagramScraper(object):
             else:
                 if self.has_selected_media_types(item) and self.is_new_media(item):
                     item['username']=username
-                    future = executor.submit(self.worker_wrapper, self.download, item, dst)
-                    future_to_item[future] = item
+                    self.download(item, dst)
+                    future_to_item['media'] = item
 
             if self.include_location:
                 item['username']=username
-                media_exec.submit(self.worker_wrapper, self.__get_location, item)
+                self.__get_location(item)
 
             if self.comments:
                 item['username']=username
@@ -1056,6 +1070,7 @@ class InstagramScraper(object):
                                 downloaded_before = downloaded
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
+                                self.sleep(RETRY_DELAY)
                                 with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404 or response.status_code == 410:
                                         #on 410 error see issue #343
