@@ -1072,7 +1072,7 @@ class InstagramScraper(object):
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
                                 if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
-                                    self.sleep(200)
+                                    self.sleep(1)
                                 else:
                                     self.sleep(RETRY_DELAY - int(time.time()) - lasttime)
                                 lasttime = int(time.time())
