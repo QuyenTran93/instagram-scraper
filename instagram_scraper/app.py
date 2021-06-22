@@ -1074,7 +1074,7 @@ class InstagramScraper(object):
                                 if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
                                     self.sleep(1)
                                 else:
-                                    self.sleep(RETRY_DELAY - int(time.time()) - lasttime)
+                                    self.sleep(RETRY_DELAY - (int(time.time()) - lasttime))
                                 lasttime = int(time.time())
                                 with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404 or response.status_code == 410:
