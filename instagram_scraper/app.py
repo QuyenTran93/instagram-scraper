@@ -1045,6 +1045,7 @@ class InstagramScraper(object):
 
         files_path = []
 
+        lasttime = 0
         for full_url, base_name in self.templatefilename(item):
             url = full_url.split('?')[0] #try the static url first, stripping parameters
 
@@ -1070,7 +1071,11 @@ class InstagramScraper(object):
                                 downloaded_before = downloaded
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
-                                self.sleep(RETRY_DELAY)
+                                if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
+                                    self.sleep(200)
+                                else:
+                                    self.sleep(RETRY_DELAY - int(time.time()) - lasttime)
+                                lasttime = int(time.time())
                                 with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404 or response.status_code == 410:
                                         #on 410 error see issue #343
