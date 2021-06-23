@@ -187,12 +187,17 @@ class InstagramScraper(object):
         # only covers failed DNS lookups, socket connections and connection timeouts
         # It doesnt work when server terminate connection while response is downloaded
         retry = 0
+        lasttime = 0
         retry_delay = RETRY_DELAY
         while True:
             if self.quit:
                 return
             try:
-                self.sleep(RETRY_DELAY)
+                if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
+                    self.sleep(5)
+                else:
+                    self.sleep(max(RETRY_DELAY - (int(time.time()) - lasttime), 4))
+                lasttime = int(time.time())
                 response = self.session.get(timeout=CONNECT_TIMEOUT, cookies=self.cookies, *args, **kwargs)
                 if response.status_code == 404:
                     return
@@ -210,9 +215,9 @@ class InstagramScraper(object):
                 elif len(args) > 0:
                     url = args[0]
                 if retry < MAX_RETRIES:
-                    self.logger.warning('Retry after exception {0} on {1}'.format(repr(e), url))
+                    self.logger.warning('Retry after exception {0} on {1} - counter {2}'.format(repr(e), url, retry))
                     self.sleep(retry_delay)
-                    retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
+                    retry_delay = min( 3 * retry_delay, MAX_RETRY_DELAY )
                     retry = retry + 1
                     continue
                 else:
@@ -312,6 +317,7 @@ class InstagramScraper(object):
                 self.session.post(LOGOUT_URL, data=logout_data)
                 self.authenticated = False
                 self.logged_in = False
+                self.logger.info( 'Logout success!' )
             except requests.exceptions.RequestException:
                 self.logger.warning('Failed to log out ' + self.login_user)
 
@@ -1072,9 +1078,9 @@ class InstagramScraper(object):
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
                                 if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
-                                    self.sleep(1)
+                                    self.sleep(5)
                                 else:
-                                    self.sleep(RETRY_DELAY - (int(time.time()) - lasttime))
+                                    self.sleep(max(RETRY_DELAY - (int(time.time()) - lasttime), 4))
                                 lasttime = int(time.time())
                                 with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404 or response.status_code == 410:
@@ -1139,9 +1145,9 @@ class InstagramScraper(object):
                                     retry = 0 # the next fail will be first in a row with no data
                                     continue
                                 if retry < MAX_RETRIES:
-                                    self.logger.warning('Retry after exception {0} on {1}'.format(repr(e), media))
+                                    self.logger.warning('Retry after exception {0} on {1} - counter {2}'.format(repr(e), media, retry))
                                     self.sleep(retry_delay)
-                                    retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
+                                    retry_delay = min( 3 * retry_delay, MAX_RETRY_DELAY )
                                     retry = retry + 1
                                     continue
                                 else:
