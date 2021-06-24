@@ -654,7 +654,7 @@ class InstagramScraper(object):
                 self.rhx_gis = ""
                 
                 try:
-                    self.get_profile_pic(dst, future_to_item, user, username)
+                    self.get_profile_pic(dst + '/profile_pic', future_to_item, user, username)
                     if 'profile_pic' in future_to_item:
                         timestamp = self.__get_timestamp(future_to_item['profile_pic'])
                         if timestamp > greatest_timestamp:
@@ -668,7 +668,7 @@ class InstagramScraper(object):
 
                 if self.logged_in:
                     try:
-                        self.get_stories(dst, future_to_item, user, username)
+                        self.get_stories(dst + '/stories', future_to_item, user, username)
                         if 'stories' in future_to_item:
                             timestamp = self.__get_timestamp(future_to_item['stories'])
                             if timestamp > greatest_timestamp:
@@ -682,7 +682,7 @@ class InstagramScraper(object):
                 # Crawls the media and sends it to the executor.
                 try:
                     try:
-                        self.get_media(dst, future_to_item, user)
+                        self.get_media(dst + '/media', future_to_item, user)
                         if 'media' in future_to_item:
                             timestamp = self.__get_timestamp(future_to_item['media'])
                             if timestamp > greatest_timestamp:
