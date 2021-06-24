@@ -654,7 +654,7 @@ class InstagramScraper(object):
                 self.rhx_gis = ""
                 
                 try:
-                    self.get_profile_pic(dst + '/profile_pic', future_to_item, user, username)
+                    self.get_profile_pic(dst, future_to_item, user, username)
                     if 'profile_pic' in future_to_item:
                         timestamp = self.__get_timestamp(future_to_item['profile_pic'])
                         if timestamp > greatest_timestamp:
