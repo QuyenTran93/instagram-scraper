@@ -17,6 +17,7 @@ import socket
 import sys
 import textwrap
 import time
+import random
 
 try:
     from urllib.parse import urlparse
@@ -94,7 +95,7 @@ class InstagramScraper(object):
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
-                                                        template='{urlname}', log_destination='')
+                                                        template='{urlname}', log_destination='', no_stories=False)
 
         allowed_attr = list(default_attr.keys())
         default_attr.update(kwargs)
@@ -193,10 +194,12 @@ class InstagramScraper(object):
             if self.quit:
                 return
             try:
-                if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
-                    self.sleep(5)
+                if lasttime == 0:
+                    self.sleep(random.randint(5, 8))
+                elif ((int(time.time()) - lasttime) < RETRY_DELAY):
+                    self.sleep(max(RETRY_DELAY - (int(time.time()) - lasttime) + random.randint(1, 3), 4))
                 else:
-                    self.sleep(max(RETRY_DELAY - (int(time.time()) - lasttime), 4))
+                    self.sleep(random.randint(2, 4))
                 lasttime = int(time.time())
                 response = self.session.get(timeout=CONNECT_TIMEOUT, cookies=self.cookies, *args, **kwargs)
                 if response.status_code == 404:
@@ -609,6 +612,7 @@ class InstagramScraper(object):
         return node
 
     def __get_media_details(self, shortcode):
+        self.sleep(random.randint(5, 8))
         resp = self.get_json(VIEW_MEDIA_URL.format(shortcode))
 
         if resp is not None:
@@ -666,7 +670,7 @@ class InstagramScraper(object):
                 self.get_profile_info(dst, username)
 
 
-                if self.logged_in:
+                if self.logged_in and not self.no_stories:
                     try:
                         self.get_stories(dst + '/stories', future_to_item, user, username)
                         if 'stories' in future_to_item:
@@ -713,6 +717,7 @@ class InstagramScraper(object):
         if self.logged_in:
             # Try Get the High-Resolution profile picture
             url = USER_INFO.format(user['id'])
+            self.sleep(random.randint(5, 8))
             resp = self.get_json(url)
 
             if resp is None:
@@ -750,6 +755,7 @@ class InstagramScraper(object):
         if self.profile_metadata is False:
             return
         url = USER_URL.format(username)
+        self.sleep(random.randint(5, 8))
         resp = self.get_json(url)
 
         if resp is None:
@@ -855,6 +861,7 @@ class InstagramScraper(object):
 
     def get_shared_data_userinfo(self, username=''):
         """Fetches the user's metadata."""
+        self.sleep(random.randint(5, 8))
         resp = self.get_json(BASE_URL + username)
 
         userinfo = None
@@ -878,6 +885,7 @@ class InstagramScraper(object):
         return userinfo
 
     def __fetch_stories(self, url, fetching_highlights_metadata=False):
+        self.sleep(random.randint(5, 8))
         resp = self.get_json(url)
 
         if resp is not None:
@@ -901,7 +909,7 @@ class InstagramScraper(object):
 
     def fetch_highlight_stories(self, user_id):
         """Fetches the user's highlight stories."""
-
+        self.sleep(random.randint(5, 8))
         resp = self.get_json(HIGHLIGHT_STORIES_USER_ID_URL.format(user_id))
 
         if resp is not None:
@@ -948,7 +956,7 @@ class InstagramScraper(object):
     def __query_media(self, id, end_cursor=''):
         params = QUERY_MEDIA_VARS.format(id, end_cursor)
         self.update_ig_gis_header(params)
-
+        self.sleep(random.randint(5, 8))
         resp = self.get_json(QUERY_MEDIA.format(params))
 
         if resp is not None:
@@ -1077,10 +1085,12 @@ class InstagramScraper(object):
                                 downloaded_before = downloaded
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
-                                if lasttime == 0 or (int(time.time()) - lasttime >= RETRY_DELAY):
-                                    self.sleep(5)
+                                if lasttime == 0:
+                                    self.sleep(random.randint(5, 8))
+                                elif (int(time.time()) - lasttime < RETRY_DELAY):
+                                    self.sleep(max(RETRY_DELAY - (int(time.time()) - lasttime) + random.randint(1,3), 4))
                                 else:
-                                    self.sleep(max(RETRY_DELAY - (int(time.time()) - lasttime), 4))
+                                    self.sleep(random.randint(2, 4))
                                 lasttime = int(time.time())
                                 with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404 or response.status_code == 410:
@@ -1492,6 +1502,7 @@ def main():
     parser.add_argument('--verbose', '-v', type=int, default=0, help='Logging verbosity level')
     parser.add_argument('--template', '-T', type=str, default='{urlname}', help='Customize filename template')
     parser.add_argument('--log_destination', '-l', type=str, default='', help='destination folder for the instagram-scraper.log file')
+    parser.add_argument('--no-stories', '--no_stories', action='store_true', default=False, help='Not download stories')
 
     args = parser.parse_args()
 
