@@ -339,7 +339,15 @@ class InstagramScraper(object):
             self.last_scraped_filemtime = self.get_last_scraped_timestamp(username)
             self.initial_scraped_filemtime = self.last_scraped_filemtime
         elif os.path.isdir(dst):
-            self.last_scraped_filemtime = self.get_last_scraped_filemtime(dst)
+            last_filemtime_profile = self.get_last_scraped_filemtime(dst)
+            last_filemtime_stories = 0
+            last_filemtime_posts = 0
+            if (os.path.isdir(dst + '/stories')):
+                last_filemtime_stories = self.get_last_scraped_filemtime(dst + '/stories')
+            if (os.path.isdir(dst + '/media')):
+                last_filemtime_posts = self.get_last_scraped_filemtime(dst + '/media')
+            self.last_scraped_filemtime = max(last_filemtime_profile, last_filemtime_stories, last_filemtime_posts)
+            print(self.last_scraped_filemtime)
 
         return dst
 
@@ -1266,8 +1274,8 @@ class InstagramScraper(object):
             with open(dst, 'rb') as f:
                 key = list(merged.keys())[0]
                 file_data = json.load(codecs.getreader('utf-8')(f))
-                self.remove_duplicate_data(file_data[key])
                 if key in file_data:
+                    self.remove_duplicate_data(file_data[key])
                     merged[key] = file_data[key]
             self.save_json(merged, dst)
 
