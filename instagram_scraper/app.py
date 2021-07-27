@@ -347,7 +347,6 @@ class InstagramScraper(object):
             if (os.path.isdir(dst + '/media')):
                 last_filemtime_posts = self.get_last_scraped_filemtime(dst + '/media')
             self.last_scraped_filemtime = max(last_filemtime_profile, last_filemtime_stories, last_filemtime_posts)
-            print(self.last_scraped_filemtime)
 
         return dst
 
